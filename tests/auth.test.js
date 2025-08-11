@@ -2,7 +2,6 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const app = require('../server');
 const User = require('../models/User');
-const { connectDB } = require('../config/database');
 const { STATUS_CODES, ROLES } = require('../constants');
 const { getMessage } = require('../messages');
 
@@ -10,21 +9,14 @@ describe('Authentication Endpoints', () => {
   let testUser;
   let adminUser;
 
-  beforeAll(async () => {
-    await connectDB();
-  });
-
-  afterAll(async () => {
-    await mongoose.connection.close();
-  });
-
   beforeEach(async () => {
-    // await User.deleteMany({});
+    // Clear existing users before each test
+    await User.deleteMany({});
 
     testUser = new User({
       name: 'Test User',
       email: 'test@example.com',
-      password: 'password123',
+      password: 'Password123!',
       role: ROLES.EMPLOYEE
     });
     await testUser.save();
@@ -32,7 +24,7 @@ describe('Authentication Endpoints', () => {
     adminUser = new User({
       name: 'Admin User',
       email: 'admin@example.com',
-      password: 'password123',
+      password: 'Password123!',
       role: ROLES.ADMIN
     });
     await adminUser.save();
@@ -43,15 +35,21 @@ describe('Authentication Endpoints', () => {
       const userData = {
         name: 'New User',
         email: 'newuser@example.com',
-        password: 'password123',
+        password: 'Password123!',
         role: ROLES.EMPLOYEE
       };
 
       const response = await request(app)
         .post('/api/auth/register')
-        .send(userData)
-        .expect(STATUS_CODES.CREATED);
+        .send(userData);
 
+      // Debug: Log the response to see what's happening
+      if (response.status !== STATUS_CODES.CREATED) {
+        console.log('Registration failed with status:', response.status);
+        console.log('Response body:', response.body);
+      }
+
+      expect(response.status).toBe(STATUS_CODES.CREATED);
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe(getMessage('AUTH.REGISTER_SUCCESS'));
       expect(response.body.data.user.name).toBe(userData.name);
@@ -65,7 +63,7 @@ describe('Authentication Endpoints', () => {
       const userData = {
         name: 'Duplicate User',
         email: 'test@example.com',
-        password: 'password123',
+        password: 'Password123!',
         role: ROLES.EMPLOYEE
       };
 
@@ -82,7 +80,7 @@ describe('Authentication Endpoints', () => {
       const userData = {
         name: 'Illegal Admin',
         email: 'illegaladmin@example.com',
-        password: 'password123',
+        password: 'Password123!',
         role: ROLES.ADMIN
       };
 
@@ -100,7 +98,7 @@ describe('Authentication Endpoints', () => {
     it('should login successfully with valid credentials', async () => {
       const loginData = {
         email: 'test@example.com',
-        password: 'password123'
+        password: 'Password123!'
       };
 
       const response = await request(app)
@@ -118,7 +116,7 @@ describe('Authentication Endpoints', () => {
     it('should return error for invalid credentials', async () => {
       const loginData = {
         email: 'test@example.com',
-        password: 'wrongpassword'
+        password: 'WrongPassword123!'
       };
 
       const response = await request(app)

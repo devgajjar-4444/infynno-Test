@@ -43,7 +43,7 @@ const authSchemas = {
       }),
     role: Joi.number()
       .integer()
-      .valid(ROLES.EMPLOYEE, ROLES.MANAGER)
+      .valid(ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.ADMIN)
       .default(ROLES.EMPLOYEE)
       .messages({
         'number.base': getMessage('VALIDATION.REQUIRED_FIELD'),

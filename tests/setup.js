@@ -6,6 +6,11 @@ let mongoServer;
 
 // Setup before all tests
 beforeAll(async () => {
+  // Close any existing connections first
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.connection.close();
+  }
+  
   // Create in-memory MongoDB instance for testing
   mongoServer = await MongoMemoryServer.create();
   const mongoUri = mongoServer.getUri();

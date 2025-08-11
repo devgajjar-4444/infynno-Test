@@ -54,22 +54,25 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   try {
-    try {
-      await connectDB();
-      console.log('Database connected');
-    } catch (dbError) {
-      console.warn('   Database connection failed, but server will start for testing');
-      console.warn('   To fix this, either:');
-      console.warn('   1. Install MongoDB locally');
-      console.warn('   2. Use MongoDB Atlas (update .env with Atlas connection string)');
-      console.warn('   3. Set up MongoDB Memory Server for testing');
+    // Only connect to database if not in test environment
+    if (process.env.NODE_ENV !== 'test') {
+      try {
+        await connectDB();
+        console.log('Database connected');
+      } catch (dbError) {
+        console.warn('   Database connection failed, but server will start for testing');
+        console.warn('   To fix this, either:');
+        console.warn('   1. Install MongoDB locally');
+        console.warn('   2. Use MongoDB Atlas (update .env with Atlas connection string)');
+        console.warn('   3. Set up MongoDB Memory Server for testing');
+      }
     }
     
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/health`);
       console.log(`API base: http://localhost:${PORT}/api`);
-      if (!mongoose.connection.readyState) {
+      if (!mongoose.connection.readyState && process.env.NODE_ENV !== 'test') {
         console.log('Note: Database not connected - API endpoints requiring database will fail');
       }
     });
@@ -79,6 +82,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Only start server if not imported during testing
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 module.exports = app;

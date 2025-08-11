@@ -29,11 +29,8 @@ const register = asyncHandler(async (req, res) => {
     });
   }
 
-  // Role comes validated (numeric) via Joi. Default to EMPLOYEE.
-  const userRole = (role === ROLES.MANAGER) ? ROLES.MANAGER : ROLES.EMPLOYEE;
-
-  // Prevent admin creation through registration
-  if (userRole === ROLES.ADMIN) {
+  // Prevent admin creation through registration first
+  if (role === ROLES.ADMIN) {
     return res.status(STATUS_CODES.FORBIDDEN).json({
       success: false,
       error: {
@@ -43,6 +40,9 @@ const register = asyncHandler(async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
+
+  // Role comes validated (numeric) via Joi. Default to EMPLOYEE.
+  const userRole = role || ROLES.EMPLOYEE;
 
   // Create new user
   const user = new User({
