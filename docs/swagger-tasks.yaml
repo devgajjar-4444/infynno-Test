@@ -1,0 +1,955 @@
+# Task Management Endpoints for Swagger Documentation
+# This file contains all task-related API endpoints
+
+paths:
+  # Task Management Endpoints
+  /tasks:
+    get:
+      tags:
+        - Tasks
+      summary: Get tasks with filtering and pagination
+      description: |
+        Retrieve tasks with advanced filtering, search, pagination, and sorting capabilities.
+        
+        **Access Control:**
+        - **Employee**: Can only see tasks assigned to them
+        - **Manager**: Can see all tasks they created or are assigned to
+        - **Admin**: Can see all tasks in the system
+      operationId: getTasks
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          description: Filter by task status
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskStatusEnum'
+        - name: priority
+          in: query
+          description: Filter by task priority
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskPriorityEnum'
+        - name: assignedTo
+          in: query
+          description: Filter by assigned user ID
+          required: false
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+            example: '507f1f77bcf86cd799439011'
+        - name: createdBy
+          in: query
+          description: Filter by creator user ID
+          required: false
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+            example: '507f1f77bcf86cd799439011'
+        - name: dueDateFrom
+          in: query
+          description: Filter tasks due from this date
+          required: false
+          schema:
+            type: string
+            format: date
+            example: '2024-01-01'
+        - name: dueDateTo
+          in: query
+          description: Filter tasks due until this date
+          required: false
+          schema:
+            type: string
+            format: date
+            example: '2024-12-31'
+        - name: search
+          in: query
+          description: Search in task title and description
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+            example: 'authentication'
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          required: false
+          schema:
+            type: string
+            enum: [createdAt, dueDate, priority, status, title]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort order
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: includeDeleted
+          in: query
+          description: Include soft-deleted tasks (Admin only)
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          tasks:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Task'
+                          pagination:
+                            $ref: '#/components/schemas/Pagination'
+                          filters:
+                            type: object
+                            description: Applied filters summary
+                            properties:
+                              status:
+                                $ref: '#/components/schemas/TaskStatusEnum'
+                              priority:
+                                $ref: '#/components/schemas/TaskPriorityEnum'
+                              assignedTo:
+                                type: string
+                              search:
+                                type: string
+              examples:
+                success:
+                  summary: Successful response with tasks
+                  value:
+                    success: true
+                    message: "Tasks retrieved successfully"
+                    data:
+                      tasks:
+                        - id: "507f1f77bcf86cd799439011"
+                          title: "Implement user authentication"
+                          description: "Develop JWT-based authentication system"
+                          status: "in_progress"
+                          priority: "high"
+                          assignedTo:
+                            id: "507f1f77bcf86cd799439012"
+                            name: "John Doe"
+                            email: "john.doe@company.com"
+                          createdBy:
+                            id: "507f1f77bcf86cd799439013"
+                            name: "Manager Smith"
+                            email: "manager@company.com"
+                          dueDate: "2024-02-15T10:00:00.000Z"
+                          estimatedHours: 40
+                          actualHours: 25
+                          tags: ["backend", "security"]
+                          createdAt: "2024-01-15T10:00:00.000Z"
+                          updatedAt: "2024-01-20T15:30:00.000Z"
+                      pagination:
+                        page: 1
+                        limit: 10
+                        total: 25
+                        pages: 3
+                    timestamp: "2024-01-20T15:30:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Tasks
+      summary: Create new task (Manager/Admin only)
+      description: |
+        Create a new task and assign it to a user. Only Managers and Admins can create tasks.
+        
+        **File Upload Support:**
+        - Maximum 3 attachments per task
+        - Supported formats: PDF, JPG, PNG
+        - Maximum file size: 5MB per file
+      operationId: createTask
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - description
+                - assignedTo
+                - dueDate
+              properties:
+                title:
+                  type: string
+                  minLength: 5
+                  maxLength: 100
+                  example: "Implement user authentication"
+                description:
+                  type: string
+                  minLength: 10
+                  maxLength: 1000
+                  example: "Develop JWT-based authentication system with role-based access control"
+                assignedTo:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  example: "507f1f77bcf86cd799439011"
+                priority:
+                  $ref: '#/components/schemas/TaskPriorityEnum'
+                dueDate:
+                  type: string
+                  format: date-time
+                  example: "2024-02-15T10:00:00.000Z"
+                estimatedHours:
+                  type: number
+                  minimum: 0
+                  maximum: 1000
+                  example: 40
+                tags:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 20
+                  maxItems: 10
+                  example: ["backend", "security", "authentication"]
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 3
+                  description: Task attachment files (PDF, JPG, PNG only)
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+            example:
+              title: "Implement user authentication"
+              description: "Develop JWT-based authentication system with role-based access control"
+              assignedTo: "507f1f77bcf86cd799439011"
+              priority: "high"
+              dueDate: "2024-02-15T10:00:00.000Z"
+              estimatedHours: 40
+              tags: ["backend", "security", "authentication"]
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Task'
+              example:
+                success: true
+                message: "Task created successfully"
+                data:
+                  id: "507f1f77bcf86cd799439011"
+                  title: "Implement user authentication"
+                  description: "Develop JWT-based authentication system"
+                  status: "pending"
+                  priority: "high"
+                  assignedTo:
+                    id: "507f1f77bcf86cd799439012"
+                    name: "John Doe"
+                    email: "john.doe@company.com"
+                  createdBy:
+                    id: "507f1f77bcf86cd799439013"
+                    name: "Manager Smith"
+                    email: "manager@company.com"
+                  dueDate: "2024-02-15T10:00:00.000Z"
+                  estimatedHours: 40
+                  tags: ["backend", "security", "authentication"]
+                  attachments: []
+                  comments: []
+                  createdAt: "2024-01-15T10:00:00.000Z"
+                  updatedAt: "2024-01-15T10:00:00.000Z"
+                timestamp: "2024-01-15T10:00:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /tasks/{id}:
+    get:
+      tags:
+        - Tasks
+      summary: Get task by ID
+      description: |
+        Retrieve a specific task by its ID with full details including comments and attachments.
+        
+        **Access Control:**
+        - Users can only access tasks they are assigned to or created
+        - Admins can access any task
+      operationId: getTaskById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TaskDetailed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Tasks
+      summary: Update task
+      description: |
+        Update task details and status. Users can update tasks assigned to them.
+        Managers can update tasks they created. Admins can update any task.
+      operationId: updateTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+            example:
+              title: "Updated task title"
+              description: "Updated task description"
+              status: "in_progress"
+              priority: "medium"
+              actualHours: 15
+              tags: ["backend", "security", "updated"]
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Tasks
+      summary: Delete task (Manager/Admin only)
+      description: |
+        Soft delete a task. The task will be marked as deleted but can be restored by Admin.
+        Only Managers (who created the task) and Admins can delete tasks.
+      operationId: deleteTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                message: "Task deleted successfully"
+                timestamp: "2024-01-15T10:00:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{id}/assign:
+    post:
+      tags:
+        - Tasks
+      summary: Assign task (Manager/Admin only)
+      description: |
+        Assign or reassign a task to another user. Only Managers and Admins can assign tasks.
+        The task assignment will trigger email notifications to the assigned user.
+      operationId: assignTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignTaskRequest'
+            example:
+              assignedTo: "507f1f77bcf86cd799439011"
+              notifyUser: true
+              message: "This task has been assigned to you. Please review the requirements."
+      responses:
+        '200':
+          description: Task assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{id}/comments:
+    get:
+      tags:
+        - Tasks
+      summary: Get task comments
+      description: Retrieve all comments for a specific task
+      operationId: getTaskComments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Comments retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          comments:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Comment'
+                          pagination:
+                            $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Tasks
+      summary: Add comment to task
+      description: Add a comment to a task. All users involved in the task can add comments.
+      operationId: addTaskComment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCommentRequest'
+            example:
+              content: "Task is progressing well, will be completed by tomorrow"
+              notifyTeam: true
+      responses:
+        '201':
+          description: Comment added successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Comment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{id}/attachments:
+    post:
+      tags:
+        - Tasks
+      summary: Upload task attachments
+      description: |
+        Upload files as task attachments. Maximum 3 files per task.
+        
+        **File Restrictions:**
+        - Supported formats: PDF, JPG, PNG
+        - Maximum file size: 5MB per file
+        - Maximum 3 attachments per task
+      operationId: uploadTaskAttachments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 3
+                  description: Task attachment files (PDF, JPG, PNG only)
+                description:
+                  type: string
+                  maxLength: 200
+                  description: Optional description for the attachments
+      responses:
+        '201':
+          description: Attachments uploaded successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          attachments:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Attachment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "File size exceeds maximum limit of 5MB"
+                      statusCode:
+                        type: integer
+                        example: 413
+
+  /tasks/{id}/attachments/{attachmentId}:
+    delete:
+      tags:
+        - Tasks
+      summary: Remove task attachment
+      description: Remove a specific attachment from a task
+      operationId: removeTaskAttachment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - name: attachmentId
+          in: path
+          description: Attachment ID
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+            example: '507f1f77bcf86cd799439011'
+      responses:
+        '200':
+          description: Attachment removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{id}/restore:
+    post:
+      tags:
+        - Tasks
+      summary: Restore deleted task (Admin only)
+      description: Restore a soft-deleted task. Only Admins can restore deleted tasks.
+      operationId: restoreTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task restored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# Additional Schemas for Tasks
+components:
+  schemas:
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+        - description
+        - assignedTo
+        - dueDate
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 100
+          example: "Implement user authentication"
+        description:
+          type: string
+          minLength: 10
+          maxLength: 1000
+          example: "Develop JWT-based authentication system with role-based access control"
+        assignedTo:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: "507f1f77bcf86cd799439011"
+        priority:
+          $ref: '#/components/schemas/TaskPriorityEnum'
+          default: medium
+        dueDate:
+          type: string
+          format: date-time
+          example: "2024-02-15T10:00:00.000Z"
+        estimatedHours:
+          type: number
+          minimum: 0
+          maximum: 1000
+          example: 40
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 20
+          maxItems: 10
+          example: ["backend", "security", "authentication"]
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 100
+        description:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        status:
+          $ref: '#/components/schemas/TaskStatusEnum'
+        priority:
+          $ref: '#/components/schemas/TaskPriorityEnum'
+        assignedTo:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        dueDate:
+          type: string
+          format: date-time
+        estimatedHours:
+          type: number
+          minimum: 0
+          maximum: 1000
+        actualHours:
+          type: number
+          minimum: 0
+          maximum: 1000
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 20
+          maxItems: 10
+
+    AssignTaskRequest:
+      type: object
+      required:
+        - assignedTo
+      properties:
+        assignedTo:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: "507f1f77bcf86cd799439011"
+        notifyUser:
+          type: boolean
+          default: true
+          description: Send email notification to assigned user
+        message:
+          type: string
+          maxLength: 500
+          description: Optional message to include in notification
+
+    AddCommentRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: "Task is progressing well, will be completed by tomorrow"
+        notifyTeam:
+          type: boolean
+          default: false
+          description: Notify all team members involved in the task
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        title:
+          type: string
+          example: "Implement user authentication"
+        description:
+          type: string
+          example: "Develop JWT-based authentication system"
+        status:
+          $ref: '#/components/schemas/TaskStatusEnum'
+        priority:
+          $ref: '#/components/schemas/TaskPriorityEnum'
+        assignedTo:
+          $ref: '#/components/schemas/UserSummary'
+        createdBy:
+          $ref: '#/components/schemas/UserSummary'
+        dueDate:
+          type: string
+          format: date-time
+          example: "2024-02-15T10:00:00.000Z"
+        estimatedHours:
+          type: number
+          example: 40
+        actualHours:
+          type: number
+          example: 25
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["backend", "security"]
+        attachmentCount:
+          type: integer
+          example: 2
+        commentCount:
+          type: integer
+          example: 5
+        isDeleted:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-20T15:30:00.000Z"
+
+    TaskDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Task'
+        - type: object
+          properties:
+            attachments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Attachment'
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Comment'
+            history:
+              type: array
+              items:
+                $ref: '#/components/schemas/TaskHistoryEntry'
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john.doe@company.com"
+        role:
+          $ref: '#/components/schemas/UserRoleEnum'
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        content:
+          type: string
+          example: "Task is progressing well"
+        author:
+          $ref: '#/components/schemas/UserSummary'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:00:00.000Z"
+
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        filename:
+          type: string
+          example: "requirements.pdf"
+        originalName:
+          type: string
+          example: "Project Requirements.pdf"
+        mimeType:
+          type: string
+          example: "application/pdf"
+        size:
+          type: integer
+          example: 1024000
+          description: File size in bytes
+        url:
+          type: string
+          example: "/uploads/tasks/507f1f77bcf86cd799439011/requirements.pdf"
+        uploadedBy:
+          $ref: '#/components/schemas/UserSummary'
+        uploadedAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:00:00.000Z"
+
+    TaskHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        action:
+          type: string
+          enum: [created, updated, assigned, status_changed, comment_added, attachment_added, attachment_removed, deleted, restored]
+          example: "status_changed"
+        description:
+          type: string
+          example: "Status changed from 'pending' to 'in_progress'"
+        changes:
+          type: object
+          description: Object containing the specific changes made
+          example:
+            field: "status"
+            oldValue: "pending"
+            newValue: "in_progress"
+        performedBy:
+          $ref: '#/components/schemas/UserSummary'
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:00:00.000Z"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 25
+        pages:
+          type: integer
+          example: 3
+        hasNext:
+          type: boolean
+          example: true
+        hasPrev:
+          type: boolean
+          example: false
